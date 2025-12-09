@@ -1,0 +1,490 @@
+ (cd "$(git rev-parse --show-toplevel)" && git apply --3way <<'EOF' 
+diff --git a/README.mdwn b/README.mdwn
+index 20599c04a9f32228e7baf04a9252ca8a510ada5f..a370bace589df3a499d4c772b7a406de485581e2 100644
+--- a/README.mdwn
++++ b/README.mdwn
+@@ -12,33 +12,35 @@ Use the CompCert-compatible toolchain (no Rosetta on macOS):
+ opam switch create rbgs-ocaml-4.12 4.12.1
+ opam install coq.8.15.2 menhir.20200211
+ eval "$(opam env --switch=rbgs-ocaml-4.12)"
+ ```
+ 
+ ### Configure and build
+ 
+ Clone your fork and build:
+ 
+ ```
+ git clone https://github.com/<your-username>/rbgs.git
+ cd rbgs
+ ./configure -nocompcert   # macOS-friendly; use ./configure on Linux to include CompCert
+ make -j4
+ ```
+ 
+ Notes:
+ - CompCert’s runtime currently expects GNU binutils; on macOS use `-nocompcert` or build on Linux.
+ - The `_CoqProject` already lists the new concurrency files.
+ 
+ ## What’s in this fork
+ 
+ - Concurrency scaffolding: `models/ConcSignature.v`, `ConcMonad.v`, `ConcStrategy.v`, `ConcRefinement.v`, plus driving stubs `examples/ConcSpawn.v`, `examples/ConcChan.v`.
+ - White paper: `White_paper/whitepaper.md` summarizes goals, current status, and next steps.
+ - Bibliography: `references.bib` cites the three guiding papers (`compcertoe`, `compcertoc`, `ctlinear-jacm`).
++- Smart constructors and notations: `ConcMonad.spawn/yield/send/recv/join` build effectful terms directly from the signature, and `ConcMonad.Notations` offers a `do`-notation (`x <- t ;; u`) for lighter scripts.
++- Proof scaffolding: `ConcRefinement.returns` interprets a concurrent term in a total-correctness style (every branch returns the same configuration), with lemmas for spawn/yield/send/recv/join and tensor pairing.
+ 
+ Refinement notes:
+-- `ConcRefinement.v` currently treats refinement as pure returns; strengthening to trace/scheduler simulations is the next milestone.
++- `ConcRefinement.v` now encodes a total-correctness predicate (`returns`) that forces every branch of a concurrent term to converge to the same configuration. Strengthening this to trace/scheduler simulations is the next milestone.
+ - Example stubs compile and are ready to be expanded into full refinement case studies.
+ 
+ ## Running without CompCert
+ 
+ If you only need the Rocq developments, configure with `./configure -nocompcert` and run `make -j4`. CompCert can be re-enabled later by re-running `./configure` (on Linux) and `make clean && make -jN`.
+diff --git a/White_paper/whitepaper.tex b/White_paper/whitepaper.tex
+index 2a02a0acbb9856d165179a951a1453e9a25a6f27..1462fd2ef196a78a8d5d055000bea14970358191 100644
+--- a/White_paper/whitepaper.tex
++++ b/White_paper/whitepaper.tex
+@@ -1,78 +1,78 @@
+ \documentclass[11pt]{article}
+ \usepackage[margin=1in]{geometry}
+ \usepackage{amsmath,amssymb,amsthm}
+ \usepackage{enumitem}
+ \usepackage{hyperref}
+ 
+ \title{Refinement-Based Game Semantics with Concurrency\\A Fork of \texttt{rbgs}}
+ \author{R. Philip Stetson IV}
+ \date{9 December 2025}
+ 
+ \begin{document}
+ \maketitle
+ 
+ \begin{abstract}
+-This note summarizes the mathematical setting of the refinement-based game semantics (RBGS) project and the contributions of this fork: a concurrency effect signature, its free monad, a configuration/strategy skeleton, and example drivers. The aim is to make concurrency compositional, refinement-friendly, and compatible with the categorical structure already present in RBGS.
++This note summarizes the mathematical setting of the refinement-based game semantics (RBGS) project and the contributions of this fork: a concurrency effect signature, its free monad and Rocq-friendly notation, a configuration/strategy skeleton, and example drivers. The aim is to make concurrency compositional, refinement-friendly, and compatible with the categorical structure already present in RBGS.
+ \end{abstract}
+ 
+ \section{Context and problem}
+ RBGS models programs as strategies over effect signatures, equipped with refinement conventions that compose horizontally (modules), vertically (abstractions), and spatially (state components)~\cite{compcertoe}. The open problem addressed here is: \emph{how do we add cooperative concurrency (spawn, yield, channel communication, join) while preserving the algebraic and categorical structure that underpins RBGS and downstream compilation correctness?}
+ 
+ \section{Questions and commands to realize}
+ The concurrency extension is framed by the following questions:
+ \begin{enumerate}[label=(Q\arabic*)]
+   \item How should a concurrency effect be presented so its algebra (sequencing, parallel composition) integrates with existing signatures?
+   \item Which categorical structure captures concurrent composition so that refinement remains compositional?
+   \item How can we stage scheduler choices and memory relations so the semantics is parametric yet implementable?
+ \end{enumerate}
+ 
+ In operational terms, the ``commands'' we seek to realize are the effect operations:
+ \[
+  \textsf{spawn} : 1 \to \mathsf{Tid},\quad
+  \textsf{yield} : 1 \to 1,\quad
+  \textsf{send} : \mathsf{Chan} \times \mathsf{Val} \to 1,\quad
+  \textsf{recv} : \mathsf{Chan} \to \mathsf{Val},\quad
+  \textsf{join} : \mathsf{Tid} \to \mathsf{Val}.
+ \]
+ 
+ \section{Categorical and semantic foundations}
+ \paragraph{Effect signatures.} RBGS treats an effect signature as a polynomial endofunctor on \(\mathbf{Set}\). We add a concurrency signature \(\mathsf{Conc}\) with the operations above; its presentation as a dependent type \(\mathsf{Conc} : \mathsf{Type} \to \mathsf{Type}\) is converted to a polynomial \(\Sigma_{\mathsf{Conc}}\) to align with existing machinery.
+ 
+ \paragraph{Free monad and tensor.} The module \texttt{models/ConcMonad.v} builds the free monad \(T_{\mathsf{Conc}}\) over \(\Sigma_{\mathsf{Conc}}\), inheriting unit \(\eta\) and multiplication \(\mu\) from the general free-monad construction. We equip \(T_{\mathsf{Conc}}\) with a tensor
+ \[
+   m_{X,Y} : T_{\mathsf{Conc}} X \times T_{\mathsf{Conc}} Y \to T_{\mathsf{Conc}}(X \times Y),
+ \]
+ realizing a simple parallel pairing. This aligns with the symmetric monoidal structure used throughout RBGS and sets the stage for more refined interleavings.
+ 
+ \paragraph{Strategies and configurations.} The module \texttt{models/ConcStrategy.v} models a configuration as a list of thread states paired with shared state. System strategies \(C \to T_{\mathsf{Conc}} C\) combine via the tensor and a configuration merge, anticipating a scheduler that selects interleavings. This mirrors the game-semantic view of plays as interactions over combined arenas~\cite{ctlinear}.
+ 
+-\paragraph{Refinement scaffold.} The module \texttt{models/ConcRefinement.v} states refinement obligations between abstract concurrent terms and concrete configurations. The current proofs are placeholders, but the structure follows the refinement-convention pattern of~\cite{compcertoe,compcertoc}: simulations parameterized by scheduler and shared-memory relations (e.g., TKMR).
++\paragraph{Refinement scaffold.} The module \texttt{models/ConcRefinement.v} states refinement obligations between abstract concurrent terms and concrete configurations. The current proofs are placeholders, but the structure follows the refinement-convention pattern of~\cite{compcertoe,compcertoc}: simulations parameterized by scheduler and shared-memory relations (e.g., TKMR), plus total-correctness lemmas for each primitive (\textsf{spawn}, \textsf{yield}, \textsf{send}, \textsf{recv}, \textsf{join}) and the tensor pairing.
+ 
+ \section{Implementation summary}
+ \begin{itemize}
+-  \item \textbf{Signature and monad:} \texttt{ConcSignature.v}, \texttt{ConcMonad.v}.
++  \item \textbf{Signature and monad:} \texttt{ConcSignature.v}, \texttt{ConcMonad.v} with bind/yield notation in \texttt{ConcMonad.Notations}.
+   \item \textbf{Strategies and refinement:} \texttt{ConcStrategy.v}, \texttt{ConcRefinement.v}.
+   \item \textbf{Examples:} \texttt{examples/ConcSpawn.v}, \texttt{examples/ConcChan.v} as driver proofs.
+   \item \textbf{Build:} Coq~8.15.2, OCaml~4.12.1, \texttt{./configure -nocompcert \&\& make -j4} (CompCert optional on Linux).
+ \end{itemize}
+ 
+ \section{Why this design}
+ \begin{itemize}
+   \item \emph{Compositionality}: By staying within polynomial signatures and free monads, concurrency composes with existing effects and categorical structure without bespoke encodings.
+   \item \emph{Refinement readiness}: The refinement scaffold mirrors the 3D algebra of~\cite{compcertoe}, enabling horizontal (threads), vertical (abstraction), and spatial (state) composition once proofs are filled in.
+   \item \emph{Scheduler parametricity}: The strategy/configuration split leaves scheduling abstract, allowing instantiation with cooperative schedulers or refinement conventions as in~\cite{compcertoc}.
+   \item \emph{Game-semantic alignment}: Parallel composition is expressed via monoidal structure on strategies, echoing the Karoubi-envelope discipline for avoiding neutral-element interference~\cite{ctlinear}.
+ \end{itemize}
+ 
+ \section{Next steps}
+ \begin{itemize}
+   \item Strengthen \(R_{\mathsf{conc}}\) to a step-indexed or trace-based simulation relating abstract terms to scheduled configurations; validate monad laws plus scheduler fairness.
+   \item Instantiate scheduler and memory refinement conventions (e.g., TKMR-style relations) to obtain end-to-end theorems for spawn/yield/send/recv/join.
+   \item Elevate the example stubs into full refinement case studies with compositional linking proofs and extracted traces.
+   \item Tie the concurrency tensor to the existing symmetric monoidal structure to document coherence (associativity/symmetry/unit) at the strategy level.
+ \end{itemize}
+ 
+ \bibliographystyle{abbrv}
+ \bibliography{references}
+ 
+ \end{document}
+diff --git a/examples/ConcChan.v b/examples/ConcChan.v
+index 9d86e842cc80b81c5c5dba37dd1437996c72f8b7..222e0f4c5c75022f392a1770dbb99361a93bbec0 100644
+--- a/examples/ConcChan.v
++++ b/examples/ConcChan.v
+@@ -1,36 +1,51 @@
+ Require Import Coq.Lists.List.
+ Import ListNotations.
+ Require Import models.ConcSignature.
+ Require Import models.ConcMonad.
+ Require Import models.ConcStrategy.
+ Require Import models.ConcRefinement.
+ 
+ (** Stub example: two threads communicate over a channel. *)
+ 
+ Section ConcChan.
+   Variable Val Tid Chan : Type.
+   Let P := {| conc_val := Val; conc_tid := Tid; conc_chan := Chan |}.
+ 
+   Variable ThreadState SharedState : Type.
+ 
+   Notation config := (ConcStrategy.config ThreadState SharedState).
+   Notation term := (ConcMonad.conc_term P).
++  Import ConcMonad.Notations.
++  Local Open Scope conc_scope.
++  #[local] Notation ret := (ConcMonad.ret (P:=P)).
+ 
+-  Definition sender (ts : ThreadState) : term ThreadState := ConcMonad.ret ts.
+-  Definition receiver (ts : ThreadState) : term ThreadState := ConcMonad.ret ts.
++  Definition sender (ch : Chan) (v : Val) (ts : ThreadState) : term ThreadState :=
++    ConcMonad.send (P:=P) ch v (fun _ => ret ts).
++
++  Definition receiver (ch : Chan) (ts : ThreadState) : term ThreadState :=
++    ConcMonad.recv (P:=P) ch (fun _ => ret ts).
+ 
+   Definition compose_config (t1 t2 : ThreadState) (sh : SharedState) : config :=
+     {| ConcStrategy.cfg_threads := [t1; t2];
+        ConcStrategy.cfg_shared := sh |}.
+ 
++  Definition two_party_exchange (ch : Chan) (v : Val) (t1 t2 : ThreadState) (sh : SharedState) : term config :=
++    _ <- sender ch v t1;;
++    _ <- receiver ch t2;;
++    ret (compose_config t1 t2 sh).
++
+   Definition R : term config -> config -> Prop := fun t c => ConcRefinement.R_conc P ThreadState SharedState t c.
+ 
+   (** Placeholder correctness statement. *)
+   Lemma chan_example_refines :
+-    forall t1 t2 sh, R (ConcMonad.ret (compose_config t1 t2 sh)) (compose_config t1 t2 sh).
++    forall ch v t1 t2 sh, R (two_party_exchange ch v t1 t2 sh) (compose_config t1 t2 sh).
+   Proof.
+-    intros t1 t2 sh.
+-    unfold R.
+-    apply ConcRefinement.ret_refines.
++    intros ch v t1 t2 sh.
++    unfold two_party_exchange, R.
++    eapply (ConcRefinement.returns_bind P ThreadState SharedState) with (x:=t1).
++    - constructor. intro _. constructor.
++    - intro _. eapply (ConcRefinement.returns_bind P ThreadState SharedState) with (x:=t2).
++      + constructor. intro _. constructor.
++      + intro _. constructor.
+   Qed.
+ End ConcChan.
+diff --git a/examples/ConcSpawn.v b/examples/ConcSpawn.v
+index 2949abaf8efa0b792bb90b99550bceab8213de72..b16ba86a611c3046bab71f35aafe8e2f8fc3c5e7 100644
+--- a/examples/ConcSpawn.v
++++ b/examples/ConcSpawn.v
+@@ -1,41 +1,50 @@
+ Require Import Coq.Lists.List.
+ Import ListNotations.
+ Require Import models.ConcSignature.
+ Require Import models.ConcMonad.
+ Require Import models.ConcStrategy.
+ Require Import models.ConcRefinement.
+ 
+ (** Stub example: a thread spawns a worker that increments a counter. *)
+ 
+ Section ConcSpawn.
+   Variable Val Tid Chan : Type.
+   Let P := {| conc_val := Val; conc_tid := Tid; conc_chan := Chan |}.
+ 
+   Variable ThreadState SharedState : Type.
+ 
+   Notation config := (ConcStrategy.config ThreadState SharedState).
+   Notation term := (ConcMonad.conc_term P).
++  Import ConcMonad.Notations.
++  Local Open Scope conc_scope.
++  #[local] Notation ret := (ConcMonad.ret (P:=P)).
+ 
+   (** Simple shared-state update and worker identity constructors. *)
+   Definition counter_inc (sh : SharedState) : SharedState := sh.
+   Definition mk_worker (ts : ThreadState) : ThreadState := ts.
+ 
+   (** Sketch of the spawned worker program. *)
+   Definition worker_body (ts : ThreadState) : term ThreadState :=
+-    ConcMonad.ret ts.
++    _ <- ConcMonad.yield (P:=P) (fun _ => ret tt);
++    ret (mk_worker ts).
+ 
+   (** Client program: spawn worker, then join (placeholder behavior). *)
+   Definition spawn_and_join (c : config) : term config :=
+-    ConcMonad.ret c.
++    ConcMonad.spawn (P:=P) (fun tid =>
++      ConcMonad.join (P:=P) tid (fun _ =>
++        ret
++          {| ConcStrategy.cfg_threads := ConcStrategy.cfg_threads c;
++             ConcStrategy.cfg_shared := counter_inc (ConcStrategy.cfg_shared c) |})).
+ 
+   Definition R : term config -> config -> Prop := fun t c => ConcRefinement.R_conc P ThreadState SharedState t c.
+ 
+   (** Placeholder correctness statement. *)
+   Lemma spawn_example_refines :
+     forall c, R (spawn_and_join c) c.
+   Proof.
+-    intros c.
+-    unfold spawn_and_join, R.
+-    apply ConcRefinement.ret_refines.
++    intros c. unfold spawn_and_join, R.
++    eapply ConcRefinement.spawn_refinement.
++    intro tid. eapply ConcRefinement.join_refinement.
++    intro _. apply ConcRefinement.ret_refines.
+   Qed.
+ End ConcSpawn.
+diff --git a/models/ConcMonad.v b/models/ConcMonad.v
+index b5d33889c2b04efb7afaec1926b12d64ea950208..b8cf7f1cff0328e32df6ceeedca6385d0468575d 100644
+--- a/models/ConcMonad.v
++++ b/models/ConcMonad.v
+@@ -1,50 +1,108 @@
+ Require Import models.ConcSignature.
+ Require Import models.EffectSignatures.
+ 
+ (** Free concurrency monad over the [Conc] signature. *)
+ 
+ Module ConcMonad.
+   Module Sig := SigBase.
+ 
+   (** Terms over the concurrency signature. *)
+   Definition conc_term (P : conc_params) (X : Type) : Type :=
+     Sig.term (ConcSignature.conc_sig P) X.
+ 
++  #[global] Arguments conc_term _ _ : clear implicits.
++
++  (** Smart constructors for the effect operations. *)
++  Definition spawn {P : conc_params} {X}
++             (k : ConcSignature.conc_tid P -> conc_term P X) : conc_term P X :=
++    Sig.cons (Sig.mkop (ConcSignature.e_spawn P)) k.
++
++  Definition yield {P : conc_params} {X}
++             (k : unit -> conc_term P X) : conc_term P X :=
++    Sig.cons (Sig.mkop (ConcSignature.e_yield P)) k.
++
++  Definition send {P : conc_params} {X}
++             (ch : ConcSignature.conc_chan P) (v : ConcSignature.conc_val P)
++             (k : unit -> conc_term P X) : conc_term P X :=
++    Sig.cons (Sig.mkop (ConcSignature.e_send P ch v)) k.
++
++  Definition recv {P : conc_params} {X}
++             (ch : ConcSignature.conc_chan P)
++             (k : ConcSignature.conc_val P -> conc_term P X) : conc_term P X :=
++    Sig.cons (Sig.mkop (ConcSignature.e_recv P ch)) k.
++
++  Definition join {P : conc_params} {X}
++             (t : ConcSignature.conc_tid P)
++             (k : ConcSignature.conc_val P -> conc_term P X) : conc_term P X :=
++    Sig.cons (Sig.mkop (ConcSignature.e_join P t)) k.
++
+   (** Functorial action on terms. *)
+   Definition fmap {P : conc_params} {X Y} (f : X -> Y) (t : conc_term P X) : conc_term P Y :=
+     Sig.tmap f t.
+ 
+   (** Monad structure inherited from the free monad on the signature. *)
+   Definition ret {P : conc_params} {X} (x : X) : conc_term P X :=
+     Sig.var x.
+ 
+   Definition bind {P : conc_params} {X Y} (f : X -> conc_term P Y) (t : conc_term P X) : conc_term P Y :=
+     Sig.subst f t.
+ 
++  #[global] Arguments spawn {P X} _.
++  #[global] Arguments yield {P X} _.
++  #[global] Arguments send {P X} _ _ _.
++  #[global] Arguments recv {P X} _ _.
++  #[global] Arguments join {P X} _ _.
++  #[global] Arguments ret {P X} _.
++  #[global] Arguments bind {P X Y} _ _.
++
++  Module Notations.
++    Declare Scope conc_scope.
++    Bind Scope conc_scope with conc_term.
++
++    Notation "x <- t1 ;; t2" := (bind (fun x => t2) t1)
++      (at level 100, t1 at next level, right associativity) : conc_scope.
++    Notation "t1 ;; t2" := (bind (fun _ => t2) t1)
++      (at level 100, right associativity) : conc_scope.
++    Notation "'ret!' x" := (ret x)
++      (at level 10) : conc_scope.
++  End Notations.
++
+   Lemma bind_ret {P : conc_params} {X} (t : conc_term P X) :
+     bind (P:=P) (@ret P X) t = t.
+   Proof.
+     unfold bind, ret. apply Sig.subst_var_l.
+   Qed.
+ 
+   Lemma ret_bind {P : conc_params} {X Y} (f : X -> conc_term P Y) (x : X) :
+     bind (P:=P) f (ret x) = f x.
+   Proof.
+     reflexivity.
+   Qed.
+ 
+   Lemma bind_bind {P : conc_params} {X Y Z}
+         (f : X -> conc_term P Y) (g : Y -> conc_term P Z) (t : conc_term P X) :
+     bind (P:=P) g (bind (P:=P) f t) =
+     bind (P:=P) (fun v => bind (P:=P) g (f v)) t.
+   Proof.
+     unfold bind. apply Sig.subst_subst.
+   Qed.
+ 
++  Lemma fmap_id {P : conc_params} {X} (t : conc_term P X) :
++    fmap (P:=P) (fun x => x) t = t.
++  Proof. apply Sig.tmap_id. Qed.
++
++  Lemma fmap_compose {P : conc_params} {X Y Z} (g : Y -> Z) (f : X -> Y) (t : conc_term P X) :
++    fmap (P:=P) (fun x => g (f x)) t = fmap (P:=P) g (fmap (P:=P) f t).
++  Proof. apply Sig.tmap_compose. Qed.
++
++  Lemma bind_fmap {P : conc_params} {X Y Z} (f : X -> Y) (k : Y -> conc_term P Z) (t : conc_term P X) :
++    bind (P:=P) k (fmap (P:=P) f t) = bind (P:=P) (fun x => k (f x)) t.
++  Proof. unfold bind, fmap. apply Sig.subst_tmap. Qed.
++
+   (** A simple tensor/parallel composition: sequence left then right and pair results. *)
+   Definition tensor {P : conc_params} {X Y}
+              (tx : conc_term P X) (ty : conc_term P Y) : conc_term P (X * Y) :=
+     bind (fun x => bind (fun y => ret (x, y)) ty) tx.
+ 
+   (** Tensor coherence laws can be added when integrating scheduler/monoidal structure. *)
+ End ConcMonad.
+diff --git a/models/ConcRefinement.v b/models/ConcRefinement.v
+index c6c448d1f1fdb6f25b73102fb859cc156fe2a64f..ce738a6d4381ac2589d0af80a4f400df6f2e07e4 100644
+--- a/models/ConcRefinement.v
++++ b/models/ConcRefinement.v
+@@ -1,43 +1,103 @@
+ Require Import Coq.Relations.Relations.
+ Require Import models.ConcSignature.
+ Require Import models.ConcMonad.
+ Require Import models.ConcStrategy.
+ 
+ (** Refinement scaffold for concurrency: relates abstract concurrent terms
+     to concrete scheduler-aware configurations. *)
+ 
+ Section ConcRefinement.
+   Context (P : conc_params).
+   Variable ThreadState SharedState : Type.
+ 
+   Notation config := (ConcStrategy.config ThreadState SharedState).
++  Import ConcMonad.Notations.
++  Local Open Scope conc_scope.
++  Local Notation ret := (ConcMonad.ret (P:=P)).
++  Local Notation bind := (ConcMonad.bind (P:=P)).
++  Local Notation fmap := (ConcMonad.fmap (P:=P)).
+ 
+-  (** A simple observational refinement: the concurrent term must be a pure return of [c]. *)
+-  Definition R_conc (tm : ConcMonad.conc_term P config) (c : config) : Prop :=
+-    exists c', tm = ConcMonad.ret (P:=P) c' /\ c' = c.
++  (** A simple total-correctness style refinement: every branch of the term returns [c]. *)
++  Inductive returns {X} : ConcMonad.conc_term P X -> X -> Prop :=
++  | returns_ret x : returns (ConcMonad.ret (P:=P) x) x
++  | returns_cons m k x : (forall a, returns (k a) x) -> returns (ConcMonad.Sig.cons m k) x.
++
++  Definition R_conc (tm : ConcMonad.conc_term P config) (c : config) : Prop := returns tm c.
+ 
+   Lemma ret_refines (c : config) : R_conc (ConcMonad.ret (P:=P) c) c.
+-  Proof. exists c; split; reflexivity. Qed.
++  Proof. constructor. Qed.
++
++  Lemma returns_bind {X Y} (t : ConcMonad.conc_term P X) (k : X -> ConcMonad.conc_term P Y)
++        (x : X) (y : Y) :
++    returns t x -> (forall x', returns (k x') y) -> returns (ConcMonad.bind (P:=P) k t) y.
++  Proof.
++    revert k y.
++    induction 1; intros k y Hk; cbn.
++    - apply Hk.
++    - constructor. intro a. apply IHreturns. intro x0. apply Hk.
++  Qed.
++
++  Lemma returns_fmap {X Y} (f : X -> Y) (t : ConcMonad.conc_term P X) (x : X) :
++    returns t x -> returns (ConcMonad.fmap (P:=P) f t) (f x).
++  Proof.
++    induction 1; cbn.
++    - constructor.
++    - constructor. intro a. apply IHreturns.
++  Qed.
++
++  Lemma returns_tensor {X Y} (tx : ConcMonad.conc_term P X) (ty : ConcMonad.conc_term P Y) (x : X) (y : Y) :
++    returns tx x -> returns ty y -> returns (ConcMonad.tensor (P:=P) tx ty) (x, y).
++  Proof.
++    intros Hx Hy. unfold ConcMonad.tensor.
++    eapply returns_bind; eauto.
++    intro x0. eapply returns_bind; eauto. intro y0. constructor.
++  Qed.
+ 
+-  (** Spawn refinements hold trivially for the placeholder relation. *)
++  (** Spawn and yield refinements propagate along all branches. *)
+   Lemma spawn_refinement :
+-    forall (tid : ConcSignature.conc_tid P) (k : ConcSignature.conc_tid P -> ConcMonad.conc_term P config) (t : config),
+-      R_conc (k tid) t ->
+-      R_conc (ConcMonad.bind (P:=P) k (ConcMonad.ret (P:=P) tid)) t.
++    forall (k : ConcSignature.conc_tid P -> ConcMonad.conc_term P config) (t : config),
++      (forall tid, R_conc (k tid) t) ->
++      R_conc (ConcMonad.spawn (P:=P) k) t.
+   Proof.
+-    intros tid k t H.
+-    rewrite ConcMonad.ret_bind.
+-    exact H.
++    intros k t H.
++    unfold R_conc.
++    constructor. intro tid. apply H.
+   Qed.
+ 
+-  (** Yield refinements hold trivially for the placeholder relation. *)
+   Lemma yield_refinement :
+     forall (t : config) (k : unit -> ConcMonad.conc_term P config),
+-      R_conc (k tt) t ->
+-      R_conc (ConcMonad.bind (P:=P) k (ConcMonad.ret (P:=P) tt)) t.
++      (forall u, R_conc (k u) t) ->
++      R_conc (ConcMonad.yield (P:=P) k) t.
+   Proof.
+     intros t k H.
+-    rewrite ConcMonad.ret_bind.
+-    exact H.
++    unfold R_conc.
++    constructor. intro u. apply H.
++  Qed.
++
++  Lemma send_refinement :
++    forall (ch : ConcSignature.conc_chan P) (v : ConcSignature.conc_val P)
++           (k : unit -> ConcMonad.conc_term P config) (t : config),
++      (forall u, R_conc (k u) t) ->
++      R_conc (ConcMonad.send (P:=P) ch v k) t.
++  Proof.
++    intros ch v k t Hk. constructor. intro u. apply Hk.
++  Qed.
++
++  Lemma recv_refinement :
++    forall (ch : ConcSignature.conc_chan P)
++           (k : ConcSignature.conc_val P -> ConcMonad.conc_term P config) (t : config),
++      (forall v, R_conc (k v) t) ->
++      R_conc (ConcMonad.recv (P:=P) ch k) t.
++  Proof.
++    intros ch k t Hk. constructor. intro v. apply Hk.
++  Qed.
++
++  Lemma join_refinement :
++    forall (tid : ConcSignature.conc_tid P)
++           (k : ConcSignature.conc_val P -> ConcMonad.conc_term P config) (t : config),
++      (forall v, R_conc (k v) t) ->
++      R_conc (ConcMonad.join (P:=P) tid k) t.
++  Proof.
++    intros tid k t Hk. constructor. intro v. apply Hk.
+   Qed.
+ End ConcRefinement.
+ 
+EOF
+)

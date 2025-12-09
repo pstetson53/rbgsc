@@ -1,4 +1,4 @@
-# Refinement-based game semantics (fork)
+# Refinement-based game semantics with concurrency (fork)
 
 This fork of `CertiKOS/rbgs` adds a concurrency signature/monad scaffold (`models/Conc*`, `examples/Conc*`) and a white paper explaining the direction. The base repo builds against modern Coq while keeping CompCert optional.
 
