@@ -34,9 +34,11 @@ Notes:
 - Concurrency scaffolding: `models/ConcSignature.v`, `ConcMonad.v`, `ConcStrategy.v`, `ConcRefinement.v`, plus driving stubs `examples/ConcSpawn.v`, `examples/ConcChan.v`.
 - White paper: `White_paper/whitepaper.md` summarizes goals, current status, and next steps.
 - Bibliography: `references.bib` cites the three guiding papers (`compcertoe`, `compcertoc`, `ctlinear-jacm`).
+- Smart constructors and notations: `ConcMonad.spawn/yield/send/recv/join` build effectful terms directly from the signature, and `ConcMonad.Notations` offers a `do`-notation (`x <- t ;; u`) for lighter scripts.
+- Proof scaffolding: `ConcRefinement.returns` interprets a concurrent term in a total-correctness style (every branch returns the same configuration), with lemmas for spawn/yield/send/recv/join and tensor pairing.
 
 Refinement notes:
-- `ConcRefinement.v` currently treats refinement as pure returns; strengthening to trace/scheduler simulations is the next milestone.
+- `ConcRefinement.v` now encodes a total-correctness predicate (`returns`) that forces every branch of a concurrent term to converge to the same configuration. Strengthening this to trace/scheduler simulations is the next milestone.
 - Example stubs compile and are ready to be expanded into full refinement case studies.
 
 ## Running without CompCert

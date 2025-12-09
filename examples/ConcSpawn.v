@@ -15,6 +15,9 @@ Section ConcSpawn.
 
   Notation config := (ConcStrategy.config ThreadState SharedState).
   Notation term := (ConcMonad.conc_term P).
+  Import ConcMonad.Notations.
+  Local Open Scope conc_scope.
+  #[local] Notation ret := (ConcMonad.ret (P:=P)).
 
   (** Simple shared-state update and worker identity constructors. *)
   Definition counter_inc (sh : SharedState) : SharedState := sh.
@@ -22,11 +25,16 @@ Section ConcSpawn.
 
   (** Sketch of the spawned worker program. *)
   Definition worker_body (ts : ThreadState) : term ThreadState :=
-    ConcMonad.ret ts.
+    _ <- ConcMonad.yield (P:=P) (fun _ => ret tt);
+    ret (mk_worker ts).
 
   (** Client program: spawn worker, then join (placeholder behavior). *)
   Definition spawn_and_join (c : config) : term config :=
-    ConcMonad.ret c.
+    ConcMonad.spawn (P:=P) (fun tid =>
+      ConcMonad.join (P:=P) tid (fun _ =>
+        ret
+          {| ConcStrategy.cfg_threads := ConcStrategy.cfg_threads c;
+             ConcStrategy.cfg_shared := counter_inc (ConcStrategy.cfg_shared c) |})).
 
   Definition R : term config -> config -> Prop := fun t c => ConcRefinement.R_conc P ThreadState SharedState t c.
 
@@ -34,8 +42,9 @@ Section ConcSpawn.
   Lemma spawn_example_refines :
     forall c, R (spawn_and_join c) c.
   Proof.
-    intros c.
-    unfold spawn_and_join, R.
-    apply ConcRefinement.ret_refines.
+    intros c. unfold spawn_and_join, R.
+    eapply ConcRefinement.spawn_refinement.
+    intro tid. eapply ConcRefinement.join_refinement.
+    intro _. apply ConcRefinement.ret_refines.
   Qed.
 End ConcSpawn.

@@ -12,7 +12,7 @@
 \maketitle
 
 \begin{abstract}
-This note summarizes the mathematical setting of the refinement-based game semantics (RBGS) project and the contributions of this fork: a concurrency effect signature, its free monad, a configuration/strategy skeleton, and example drivers. The aim is to make concurrency compositional, refinement-friendly, and compatible with the categorical structure already present in RBGS.
+This note summarizes the mathematical setting of the refinement-based game semantics (RBGS) project and the contributions of this fork: a concurrency effect signature, its free monad and Rocq-friendly notation, a configuration/strategy skeleton, and example drivers. The aim is to make concurrency compositional, refinement-friendly, and compatible with the categorical structure already present in RBGS.
 \end{abstract}
 
 \section{Context and problem}
@@ -46,11 +46,11 @@ realizing a simple parallel pairing. This aligns with the symmetric monoidal str
 
 \paragraph{Strategies and configurations.} The module \texttt{models/ConcStrategy.v} models a configuration as a list of thread states paired with shared state. System strategies \(C \to T_{\mathsf{Conc}} C\) combine via the tensor and a configuration merge, anticipating a scheduler that selects interleavings. This mirrors the game-semantic view of plays as interactions over combined arenas~\cite{ctlinear}.
 
-\paragraph{Refinement scaffold.} The module \texttt{models/ConcRefinement.v} states refinement obligations between abstract concurrent terms and concrete configurations. The current proofs are placeholders, but the structure follows the refinement-convention pattern of~\cite{compcertoe,compcertoc}: simulations parameterized by scheduler and shared-memory relations (e.g., TKMR).
+\paragraph{Refinement scaffold.} The module \texttt{models/ConcRefinement.v} states refinement obligations between abstract concurrent terms and concrete configurations. The current proofs are placeholders, but the structure follows the refinement-convention pattern of~\cite{compcertoe,compcertoc}: simulations parameterized by scheduler and shared-memory relations (e.g., TKMR), plus total-correctness lemmas for each primitive (\textsf{spawn}, \textsf{yield}, \textsf{send}, \textsf{recv}, \textsf{join}) and the tensor pairing.
 
 \section{Implementation summary}
 \begin{itemize}
-  \item \textbf{Signature and monad:} \texttt{ConcSignature.v}, \texttt{ConcMonad.v}.
+  \item \textbf{Signature and monad:} \texttt{ConcSignature.v}, \texttt{ConcMonad.v} with bind/yield notation in \texttt{ConcMonad.Notations}.
   \item \textbf{Strategies and refinement:} \texttt{ConcStrategy.v}, \texttt{ConcRefinement.v}.
   \item \textbf{Examples:} \texttt{examples/ConcSpawn.v}, \texttt{examples/ConcChan.v} as driver proofs.
   \item \textbf{Build:} Coq~8.15.2, OCaml~4.12.1, \texttt{./configure -nocompcert \&\& make -j4} (CompCert optional on Linux).
