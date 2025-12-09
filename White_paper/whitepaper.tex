@@ -6,70 +6,64 @@
 
 \title{Refinement-Based Game Semantics with Concurrency\\A Fork of \texttt{rbgs}}
 \author{R. Philip Stetson IV}
-\date{9 December 2025}
+\date{\today}
 
 \begin{document}
 \maketitle
 
 \begin{abstract}
-This note summarizes the mathematical setting of the refinement-based game semantics (RBGS) project and the contributions of this fork: a concurrency effect signature, its free monad, a configuration/strategy skeleton, and example drivers. The aim is to make concurrency compositional, refinement-friendly, and compatible with the categorical structure already present in RBGS.
+The goal of this fork is to extend refinement-based game semantics (RBGS) with cooperative concurrency in a way that remains compositional and proof-oriented. Building on the three-dimensional refinement algebra of Zhang et al.~\cite{compcertoe}, the cooperative threading discipline of Zhang et al.~\cite{compcertoc}, and the compositional linearizability perspective of Vale et al.~\cite{ctlinear}, we add: (i) a concurrency effect signature, free monad, and Rocq-friendly notation; (ii) a handler- and scheduler-parametric operational semantics over configurations; and (iii) a reachability-based refinement predicate and small driver lemmas. The intent is to expose precise interfaces (signatures, handlers, schedulers) that can be tightened into full refinement proofs and case studies.
 \end{abstract}
 
-\section{Context and problem}
-RBGS models programs as strategies over effect signatures, equipped with refinement conventions that compose horizontally (modules), vertically (abstractions), and spatially (state components)~\cite{compcertoe}. The open problem addressed here is: \emph{how do we add cooperative concurrency (spawn, yield, channel communication, join) while preserving the algebraic and categorical structure that underpins RBGS and downstream compilation correctness?}
-
-\section{Questions and commands to realize}
-The concurrency extension is framed by the following questions:
-\begin{enumerate}[label=(Q\arabic*)]
-  \item How should a concurrency effect be presented so its algebra (sequencing, parallel composition) integrates with existing signatures?
-  \item Which categorical structure captures concurrent composition so that refinement remains compositional?
-  \item How can we stage scheduler choices and memory relations so the semantics is parametric yet implementable?
-\end{enumerate}
-
-In operational terms, the ``commands'' we seek to realize are the effect operations:
-\[
- \textsf{spawn} : 1 \to \mathsf{Tid},\quad
- \textsf{yield} : 1 \to 1,\quad
- \textsf{send} : \mathsf{Chan} \times \mathsf{Val} \to 1,\quad
- \textsf{recv} : \mathsf{Chan} \to \mathsf{Val},\quad
- \textsf{join} : \mathsf{Tid} \to \mathsf{Val}.
-\]
-
-\section{Categorical and semantic foundations}
-\paragraph{Effect signatures.} RBGS treats an effect signature as a polynomial endofunctor on \(\mathbf{Set}\). We add a concurrency signature \(\mathsf{Conc}\) with the operations above; its presentation as a dependent type \(\mathsf{Conc} : \mathsf{Type} \to \mathsf{Type}\) is converted to a polynomial \(\Sigma_{\mathsf{Conc}}\) to align with existing machinery.
-
-\paragraph{Free monad and tensor.} The module \texttt{models/ConcMonad.v} builds the free monad \(T_{\mathsf{Conc}}\) over \(\Sigma_{\mathsf{Conc}}\), inheriting unit \(\eta\) and multiplication \(\mu\) from the general free-monad construction. We equip \(T_{\mathsf{Conc}}\) with a tensor
-\[
-  m_{X,Y} : T_{\mathsf{Conc}} X \times T_{\mathsf{Conc}} Y \to T_{\mathsf{Conc}}(X \times Y),
-\]
-realizing a simple parallel pairing. This aligns with the symmetric monoidal structure used throughout RBGS and sets the stage for more refined interleavings.
-
-\paragraph{Strategies and configurations.} The module \texttt{models/ConcStrategy.v} models a configuration as a list of thread states paired with shared state. System strategies \(C \to T_{\mathsf{Conc}} C\) combine via the tensor and a configuration merge, anticipating a scheduler that selects interleavings. This mirrors the game-semantic view of plays as interactions over combined arenas~\cite{ctlinear}.
-
-\paragraph{Refinement scaffold.} The module \texttt{models/ConcRefinement.v} states refinement obligations between abstract concurrent terms and concrete configurations. The current proofs are placeholders, but the structure follows the refinement-convention pattern of~\cite{compcertoe,compcertoc}: simulations parameterized by scheduler and shared-memory relations (e.g., TKMR).
-
-\section{Implementation summary}
-\begin{itemize}
-  \item \textbf{Signature and monad:} \texttt{ConcSignature.v}, \texttt{ConcMonad.v}.
-  \item \textbf{Strategies and refinement:} \texttt{ConcStrategy.v}, \texttt{ConcRefinement.v}.
-  \item \textbf{Examples:} \texttt{examples/ConcSpawn.v}, \texttt{examples/ConcChan.v} as driver proofs.
-  \item \textbf{Build:} Coq~8.15.2, OCaml~4.12.1, \texttt{./configure -nocompcert \&\& make -j4} (CompCert optional on Linux).
+\section{Problem}
+RBGS models programs as strategies over effect signatures with refinement conventions that compose along modules, abstraction levels, and state components~\cite{compcertoe}. The missing piece is a \emph{cooperative concurrency} layer—spawn, yield, send/recv, join—that:
+\begin{itemize}[leftmargin=1.5em]
+  \item respects the categorical structure already present (polynomial signatures, free monads, symmetric monoidal products);
+  \item exposes scheduler and memory relations (e.g., TKMR~\cite{compcertoc}) as parameters rather than hard-wiring an operational model; and
+  \item supports compositional refinement in the spirit of three-dimensional algebra while remaining compatible with compositional linearizability~\cite{ctlinear}.
 \end{itemize}
 
-\section{Why this design}
-\begin{itemize}
-  \item \emph{Compositionality}: By staying within polynomial signatures and free monads, concurrency composes with existing effects and categorical structure without bespoke encodings.
-  \item \emph{Refinement readiness}: The refinement scaffold mirrors the 3D algebra of~\cite{compcertoe}, enabling horizontal (threads), vertical (abstraction), and spatial (state) composition once proofs are filled in.
-  \item \emph{Scheduler parametricity}: The strategy/configuration split leaves scheduling abstract, allowing instantiation with cooperative schedulers or refinement conventions as in~\cite{compcertoc}.
-  \item \emph{Game-semantic alignment}: Parallel composition is expressed via monoidal structure on strategies, echoing the Karoubi-envelope discipline for avoiding neutral-element interference~\cite{ctlinear}.
+\section{Approach}
+\paragraph{Effect signature and monad.} We introduce a concurrency effect signature
+\[
+ \mathsf{Conc}(X) ::= \textsf{spawn}:X_{\mathsf{tid}} \mid \textsf{yield}:1 \mid \textsf{send}:\mathsf{Chan}\times\mathsf{Val}\to 1 \mid \textsf{recv}:\mathsf{Chan}\to\mathsf{Val} \mid \textsf{join}:\mathsf{Tid}\to\mathsf{Val},
+\]
+implemented as a dependent type and converted to a polynomial signature \(\Sigma_{\mathsf{Conc}}\). The free monad \(T_{\mathsf{Conc}}\) (module \texttt{ConcMonad}) provides \(\eta\), \(\mu\), and a tensor \(m_{X,Y}:T_{\mathsf{Conc}}X\times T_{\mathsf{Conc}}Y\to T_{\mathsf{Conc}}(X\times Y)\) that currently sequences then pairs results (a conservative, compositional default awaiting richer interleavings). Smart constructors (\texttt{spawn}, \texttt{yield}, \texttt{send}, \texttt{recv}, \texttt{join}) and a light \texttt{do}-notation keep scripts concise.
+
+\paragraph{Configurations, handlers, and scheduler.} A configuration (\texttt{ConcStrategy}) is a list of thread states plus shared state; shared-state merge is abstracted as a binary operator. Handlers interpret \(\textsf{spawn}/\textsf{yield}/\textsf{send}/\textsf{recv}/\textsf{join}\) against shared state and optionally add runnable threads. A scheduler \(\sigma : C \to \mathsf{option}\,\mathbb{N}\) selects a runnable thread. The small-step relation
+\[
+  c \xrightarrow{\sigma,h,t} c'
+\]
+is defined by interpreting the selected thread through \(T_{\mathsf{Conc}}\), applying handlers, updating the chosen thread, and appending any spawned threads.
+
+\paragraph{Refinement.} The refinement predicate (\texttt{ConcRefinement}) relates an abstract term \(t : T_{\mathsf{Conc}}\,C\) to a concrete configuration \(c\) by reachability:
+\[
+  R_{\mathsf{conc}}(t,c) \;:\iff\; \exists c_0.\; t = \eta\,c_0 \;\land\; (c_0 \xrightarrow{\sigma,h,t}{}^{*} c).
+\]
+This exposes scheduler and handler choices to the proof obligations and aligns with the three-dimensional algebra view: horizontal composition is list concatenation of threads, vertical composition is monadic substitution, and spatial composition is mediated by the shared-state merge.
+
+\paragraph{Examples.} Two driver files exercise the machinery: \texttt{ConcSpawn.v} shows that one scheduler step adds a spawned thread; \texttt{ConcChan.v} steps through a send/recv pair with unchanged shared state. They serve as sanity checks rather than full case studies.
+
+\section{Relationship to prior work}
+\begin{itemize}[leftmargin=1.5em]
+  \item \textbf{Three-dimensional refinement} (\cite{compcertoe}): The reachability-based \(R_{\mathsf{conc}}\) mirrors the algebraic composition across modules, abstraction levels, and state components, leaving scheduler/memory relations parametric.
+  \item \textbf{TKMR and cooperative stacks} (\cite{compcertoc}): Handlers are the hook for threaded Kripke memory relations; the next step is to instantiate them with TKMR-like relations and prove preservation under compilation passes.
+  \item \textbf{Compositional linearizability} (\cite{ctlinear}): The tensor and configuration merge provide the symmetric monoidal structure needed to connect to Karoubi-envelope reasoning; coherence laws remain to be proved for true parallel composition.
 \end{itemize}
 
-\section{Next steps}
-\begin{itemize}
-  \item Strengthen \(R_{\mathsf{conc}}\) to a step-indexed or trace-based simulation relating abstract terms to scheduled configurations; validate monad laws plus scheduler fairness.
-  \item Instantiate scheduler and memory refinement conventions (e.g., TKMR-style relations) to obtain end-to-end theorems for spawn/yield/send/recv/join.
-  \item Elevate the example stubs into full refinement case studies with compositional linking proofs and extracted traces.
-  \item Tie the concurrency tensor to the existing symmetric monoidal structure to document coherence (associativity/symmetry/unit) at the strategy level.
+\section{Status}
+\begin{itemize}[leftmargin=1.5em]
+  \item Implemented: \texttt{ConcSignature}, \texttt{ConcMonad} (with sequential tensor and smart constructors/\texttt{do}-notation), \texttt{ConcStrategy} (handlers/scheduler/step), \texttt{ConcRefinement} (reachability-based), examples with concrete handlers and scheduler steps.
+  \item Limitations: tensor is sequential; no fairness or scheduler obligations are encoded; handlers are uninterpreted; refinement is reachability-only (no traces or liveness); examples are single-step sanity checks.
+  \item Build: Coq~8.15.2, OCaml~4.12.1, \texttt{./configure -nocompcert \&\& make -j4} (CompCert optional on Linux).
+\end{itemize}
+
+\section{Next work}
+\begin{itemize}[leftmargin=1.5em]
+  \item Strengthen \(R_{\mathsf{conc}}\) to trace/step-indexed simulations with fairness assumptions on \(\sigma\); relate to TKMR-style memory relations.
+  \item Replace the sequential tensor with a parallel tensor satisfying symmetric monoidal coherence and compatible with Karoubi envelopes; prove associativity/symmetry/unit laws at the configuration level.
+  \item Instantiate handlers with TKMR to connect to CompCertOC-style compilation passes and prove preservation for spawn/yield/send/recv/join.
+  \item Develop real case studies (e.g., producer/consumer, fork/join pipelines) with compositional refinement theorems and extracted traces.
 \end{itemize}
 
 \bibliographystyle{abbrv}

@@ -31,13 +31,16 @@ Notes:
 
 ## What’s in this fork
 
-- Concurrency scaffolding: `models/ConcSignature.v`, `ConcMonad.v`, `ConcStrategy.v`, `ConcRefinement.v`, plus driving stubs `examples/ConcSpawn.v`, `examples/ConcChan.v`.
-- White paper: `White_paper/whitepaper.md` summarizes goals, current status, and next steps.
-- Bibliography: `references.bib` cites the three guiding papers (`compcertoe`, `compcertoc`, `ctlinear-jacm`).
+- Concurrency scaffolding: `models/ConcSignature.v`, `ConcMonad.v`, `ConcStrategy.v`, `ConcRefinement.v` with handler/scheduler-parametric interpretation and reachability-based refinement.
+- Examples: `examples/ConcSpawn.v`, `examples/ConcChan.v` now include concrete handlers/scheduler choices and lemmas (`spawn_step_adds_child`, `chan_step_progress`) that exercise `ConcStrategy.step`.
+- White paper: `White_paper/whitepaper.tex` summarizes goals, current status, and next steps.
+- Bibliography: `White_paper/references.bib` cites foundational work (CompCert, CertiKOS, CCAL).
+- DSL polish: smart constructors (`ConcMonad.spawn/yield/send/recv/join`) and lightweight `do`-notation (`_ <- t ;; u`) keep scripts readable.
+- Hygiene: compiled Coq/LaTeX artifacts are removed and ignored to keep the tree lean.
 
 Refinement notes:
-- `ConcRefinement.v` currently treats refinement as pure returns; strengthening to trace/scheduler simulations is the next milestone.
-- Example stubs compile and are ready to be expanded into full refinement case studies.
+- `ConcRefinement.v` expresses refinement as reachability over the scheduler/handler step relation; strengthening to trace/fairness simulations is next.
+- Example lemmas are intentionally small; flesh them out into full refinement case studies as the semantics matures.
 
 ## Running without CompCert
 

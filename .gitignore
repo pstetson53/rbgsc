@@ -10,9 +10,20 @@ Makefile.conf
 *.d
 *.aux
 *.log
+*.bbl
+*.blg
+*.fdb_latexmk
+*.fls
 *.nav
 *.out
+*.pdf
 *.snm
 *.toc
+*.synctex.gz
 *.vrb
 *~
+White_paper/out/
+.DS_Store
+
+# Local correspondence / meeting prep with Shao
+Shao*/

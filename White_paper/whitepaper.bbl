@@ -1,18 +1,18 @@
 \begin{thebibliography}{1}
 
 \bibitem{ctlinear}
-V.~Authors.
-\newblock Compositional linearizability via karoubi envelopes.
-\newblock {\em Journal of the ACM}, 2024.
+A.~O. Vale, Z.~Shao, and Y.~Chen.
+\newblock A compositional theory of linearizability.
+\newblock {\em J. ACM}, 71(2), Apr. 2024.
 
 \bibitem{compcertoc}
-Z.~Shao and et~al.
-\newblock Compcertoc: Cooperative multithreading with shared stacks.
-\newblock In {\em Proceedings of the 46th ACM SIGPLAN Conference on Programming Language Design and Implementation (PLDI)}, 2025.
+L.~Zhang, Y.~Wang, Y.~Liang, and Z.~Shao.
+\newblock Compcertoc: Verified compositional compilation of multi-threaded programs with shared stacks.
+\newblock {\em Proc. ACM Program. Lang.}, 9(PLDI), June 2025.
 
 \bibitem{compcertoe}
-Z.~Shao and et~al.
-\newblock Compcertoe: A 3d refinement algebra for open-environment compilation.
-\newblock In {\em Proceedings of the 52nd ACM SIGPLAN Symposium on Principles of Programming Languages (POPL)}, 2025.
+Y.~Zhang, J.~Koenig, Z.~Shao, and Y.~Wang.
+\newblock Unifying compositional verification and certified compilation with a three-dimensional refinement algebra.
+\newblock {\em Proc. ACM Program. Lang.}, 9(POPL), Jan. 2025.
 
 \end{thebibliography}

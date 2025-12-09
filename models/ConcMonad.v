@@ -10,6 +10,37 @@ Module ConcMonad.
   Definition conc_term (P : conc_params) (X : Type) : Type :=
     Sig.term (ConcSignature.conc_sig P) X.
 
+  #[global] Arguments conc_term _ _ : clear implicits.
+
+  (** Smart constructors for the effect operations. *)
+  Definition spawn {P : conc_params} {X}
+             (k : ConcSignature.conc_tid P -> conc_term P X) : conc_term P X :=
+    Sig.cons (E:=ConcSignature.conc_sig P)
+      (Sig.mkop (E:=ConcSignature.conc_esig P) (ConcSignature.e_spawn P)) k.
+
+  Definition yield {P : conc_params} {X}
+             (k : unit -> conc_term P X) : conc_term P X :=
+    Sig.cons (E:=ConcSignature.conc_sig P)
+      (Sig.mkop (E:=ConcSignature.conc_esig P) (ConcSignature.e_yield P)) k.
+
+  Definition send {P : conc_params} {X}
+             (ch : ConcSignature.conc_chan P) (v : ConcSignature.conc_val P)
+             (k : unit -> conc_term P X) : conc_term P X :=
+    Sig.cons (E:=ConcSignature.conc_sig P)
+      (Sig.mkop (E:=ConcSignature.conc_esig P) (ConcSignature.e_send P ch v)) k.
+
+  Definition recv {P : conc_params} {X}
+             (ch : ConcSignature.conc_chan P)
+             (k : ConcSignature.conc_val P -> conc_term P X) : conc_term P X :=
+    Sig.cons (E:=ConcSignature.conc_sig P)
+      (Sig.mkop (E:=ConcSignature.conc_esig P) (ConcSignature.e_recv P ch)) k.
+
+  Definition join {P : conc_params} {X}
+             (t : ConcSignature.conc_tid P)
+             (k : ConcSignature.conc_val P -> conc_term P X) : conc_term P X :=
+    Sig.cons (E:=ConcSignature.conc_sig P)
+      (Sig.mkop (E:=ConcSignature.conc_esig P) (ConcSignature.e_join P t)) k.
+
   (** Functorial action on terms. *)
   Definition fmap {P : conc_params} {X Y} (f : X -> Y) (t : conc_term P X) : conc_term P Y :=
     Sig.tmap f t.
@@ -20,6 +51,26 @@ Module ConcMonad.
 
   Definition bind {P : conc_params} {X Y} (f : X -> conc_term P Y) (t : conc_term P X) : conc_term P Y :=
     Sig.subst f t.
+
+  #[global] Arguments spawn {P X} _.
+  #[global] Arguments yield {P X} _.
+  #[global] Arguments send {P X} _ _ _.
+  #[global] Arguments recv {P X} _ _.
+  #[global] Arguments join {P X} _ _.
+  #[global] Arguments ret {P X} _.
+  #[global] Arguments bind {P X Y} _ _.
+
+  Module Notations.
+    Declare Scope conc_scope.
+    Bind Scope conc_scope with conc_term.
+
+    Notation "x <- t1 ;; t2" := (bind (fun x => t2) t1)
+      (at level 100, t1 at next level, right associativity) : conc_scope.
+    Notation "t1 ;; t2" := (bind (fun _ => t2) t1)
+      (at level 100, right associativity) : conc_scope.
+    Notation "'ret!' x" := (ret x)
+      (at level 10) : conc_scope.
+  End Notations.
 
   Lemma bind_ret {P : conc_params} {X} (t : conc_term P X) :
     bind (P:=P) (@ret P X) t = t.
