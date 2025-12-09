@@ -1,32 +1,44 @@
-# Refinement-based game semantics
+# Refinement-based game semantics (fork)
 
-## Setup
+This fork of `CertiKOS/rbgs` adds a concurrency signature/monad scaffold (`models/Conc*`, `examples/Conc*`) and a white paper explaining the direction. The base repo builds against modern Coq while keeping CompCert optional.
 
-You will need a version of Coq and various other tools supported by
-CompCert v3.6. If you are using `opam` (recommended),
-the following works as of 2020-03-06:
+## Quick start
 
-    $ opam init
-    $ opam install coq.8.9.1 menhir.20200211
+### Toolchain
 
-You can then clone the git repository using the following command:
+Use the CompCert-compatible toolchain (no Rosetta on macOS):
 
-    $ git clone https://github.com/CertiKOS/rbgs.git
+```
+opam switch create rbgs-ocaml-4.12 4.12.1
+opam install coq.8.15.2 menhir.20200211
+eval "$(opam env --switch=rbgs-ocaml-4.12)"
+```
 
-Our `configure` script will take care of retreiving the git submodule
-for Coqrel and CompCertO, and will configure them:
+### Configure and build
 
-    $ cd rbgs
-    $ ./configure
+Clone your fork and build:
 
-At this point make sure there were no error messages. In particular
-if your versions of Coq, Menhir, etc. are not suitable to build
-CompCert, this is when things will break.
+```
+git clone https://github.com/<your-username>/rbgs.git
+cd rbgs
+./configure -nocompcert   # macOS-friendly; use ./configure on Linux to include CompCert
+make -j4
+```
 
-If the configuration was successful you should be able to build the
-development using `make`. We recommend using the `-jN` option to enable
-parallel jobs as CompCert will take a while to build otherwise.
-For example on my 8-cores machine:
+Notes:
+- CompCert’s runtime currently expects GNU binutils; on macOS use `-nocompcert` or build on Linux.
+- The `_CoqProject` already lists the new concurrency files.
 
-    $ make -j8
+## What’s in this fork
 
+- Concurrency scaffolding: `models/ConcSignature.v`, `ConcMonad.v`, `ConcStrategy.v`, `ConcRefinement.v`, plus driving stubs `examples/ConcSpawn.v`, `examples/ConcChan.v`.
+- White paper: `White_paper/whitepaper.md` summarizes goals, current status, and next steps.
+- Bibliography: `references.bib` cites the three guiding papers (`compcertoe`, `compcertoc`, `ctlinear-jacm`).
+
+Refinement notes:
+- `ConcRefinement.v` currently treats refinement as pure returns; strengthening to trace/scheduler simulations is the next milestone.
+- Example stubs compile and are ready to be expanded into full refinement case studies.
+
+## Running without CompCert
+
+If you only need the Rocq developments, configure with `./configure -nocompcert` and run `make -j4`. CompCert can be re-enabled later by re-running `./configure` (on Linux) and `make clean && make -jN`.

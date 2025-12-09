@@ -28,7 +28,13 @@ models/Coherence.v
 models/DCPO.v
 models/IntStrat.v
 models/LinCCAL.v
+models/ConcSignature.v
+models/ConcMonad.v
+models/ConcStrategy.v
+models/ConcRefinement.v
 examples/CAL.v
+examples/ConcSpawn.v
+examples/ConcChan.v
 interfaces/Category.v
 interfaces/Functor.v
 interfaces/MonoidalCategory.v
