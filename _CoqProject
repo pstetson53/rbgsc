@@ -29,6 +29,11 @@ models/DCPO.v
 models/IntStrat.v
 models/LinCCAL.v
 examples/CAL.v
+examples/PiFullAbstraction/PiSyntax.v
+examples/PiFullAbstraction/PiOperational.v
+examples/PiFullAbstraction/PiDenotation.v
+examples/PiFullAbstraction/PiBisimulation.v
+examples/PiFullAbstraction/PiFullAbstraction.v
 interfaces/Category.v
 interfaces/Functor.v
 interfaces/MonoidalCategory.v
